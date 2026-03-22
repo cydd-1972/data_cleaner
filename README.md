@@ -8,6 +8,8 @@
 
 ### 1.1 一步清洗
 
+**配置**：运行前在 `config/config_step1.py`、`config/config_step2.py`、`config/config_step3.py` 中设置数据目录、模型路径、`TRAIN_SUBSETS`、文件选择策略、保留数量target_counts等。
+
 在**项目根目录**执行（需与本仓库中的 `config/`、`vllm_client.py` 及三步脚本放在一起）：
 
 ```bash
@@ -18,11 +20,9 @@ python run_clean_pipeline.py
 
 **常用参数**
 
-| 参数 | 说明 |
-|------|------|
-| `--skip-step1` | 跳过生成（已有 `generated_answers/` 时） |
-| `--skip-step2` | 跳过评估（已有 `easy/`、`medium/`、`hard/` 时） |
-| `--skip-step3` | 跳过去重与按比例抽样 |
+- `--skip-step1` | 跳过生成（已有 `generated_answers/` 时） |
+- `--skip-step2` | 跳过评估（已有 `easy/`、`medium/`、`hard/` 时） |
+- `--skip-step3` | 跳过去重与按比例抽样 |
 
 第二步（评估）支持的参数与 `step2_evaluate.py` 相同；写在命令行末尾、且不属于本入口脚本的参数，会原样传给第二步，例如：
 
@@ -30,8 +30,6 @@ python run_clean_pipeline.py
 python run_clean_pipeline.py --batch-size 64
 python run_clean_pipeline.py --skip-step1 --no-early-stop
 ```
-
-**配置**：运行前在 `config/config_step1.py`、`config/config_step2.py`、`config/config_step3.py` 中设置数据目录、模型路径、`TRAIN_SUBSETS`、文件选择策略、保留数量target_counts等。
 
 ### 1.2 分步清洗
 
@@ -66,9 +64,10 @@ python step3_filter.py
 | `step2_evaluate.py` | 第二步：Qwen3-14B 判对错，按难度写入 `easy/`、`medium/`、`hard/` |
 | `step3_filter.py` | 第三步：中等题去重，再按比例抽样到 `*_pro/` |
 | `vllm_client.py` | vLLM 封装，供第一步与第二步共用 |
-| `config/config_step1.py` | 数据路径、生成参数、断点续传等 |
-| `config/config_step2.py` | 评判模型、评估与分类阈值等 |
-| `config/config_step3.py` | 目录约定、抽样比例与目标样本量等 |
+| `config/config_step1.py` | 第一步的配置文件 |
+| `config/config_step2.py` | 第二步的配置文件 |
+| `config/config_step3.py` | 第三步的配置文件 |
+
 
 日志路径由各步 `LOG_CONFIG` 或脚本输出决定（例如 `OUTPUT_DIR` 下的 `step1_generation.log`、`step2_evaluation.log`）。
 
