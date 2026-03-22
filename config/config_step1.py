@@ -1,6 +1,3 @@
-"""
-LoCoMo数据集清洗 - 第一步配置（生成答案）
-"""
 import os
 from pathlib import Path
 
@@ -10,7 +7,7 @@ MODEL_CONFIG = {
     "temperature": 1.0,
     "max_tokens": 4096,
     "device": [1, 2],  # 使用的GPU设备
-    "torch_dtype": "float16",
+    "dtype": "float16",
 }
 
 # ==================== vLLM 配置 ====================

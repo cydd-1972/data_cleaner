@@ -51,15 +51,17 @@ class AnswerEvaluator:
         use_vllm = config.VLLM_CONFIG.get("enabled", False) and VLLM_AVAILABLE
         
         if use_vllm:
-            logger.info(f"使用 vLLM 加载评估模型: {self.model_path}")
             vllm_config = config.VLLM_CONFIG.get("engine_config", {})
-            
+            device_list = self.device if isinstance(self.device, list) else [self.device]
+
             self.vllm_client = VLLMClient(
                 model_path=self.model_path,
-                device=self.device if isinstance(self.device, list) else [self.device],
-                dtype=config.MODEL_CONFIG["torch_dtype"],
+                device=device_list,
+                dtype=config.MODEL_CONFIG.get("dtype", config.MODEL_CONFIG.get("torch_dtype", "float16")),
                 max_model_len=vllm_config.get("max_model_len", 8192),
                 gpu_memory_utilization=vllm_config.get("gpu_memory_utilization", 0.85),
+                max_num_seqs=vllm_config.get("max_num_seqs", 8),
+                tensor_parallel_size=vllm_config.get("tensor_parallel_size"),
             )
             
             from transformers import AutoTokenizer
@@ -143,7 +145,9 @@ class AnswerEvaluator:
             )
             self.stats["model_calls"] += len(prompts)
             self.stats["batches"] += 1
-            return [self._parse_judge_result(r) for r in results]
+            # vLLM 返回每条 prompt 一个 list（n 个候选），此处 n=1
+            texts = [row[0] if isinstance(row, list) and row else row for row in results]
+            return [self._parse_judge_result(t) for t in texts]
         except Exception as e:
             logger.error(f"vLLM批量判断失败: {e}")
             raise

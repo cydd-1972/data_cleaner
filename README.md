@@ -31,7 +31,7 @@ python run_clean_pipeline.py --batch-size 64
 python run_clean_pipeline.py --skip-step1 --no-early-stop
 ```
 
-**配置**：运行前请在 `config/config_step1.py`、`config/config_step2.py`、`config/config_step3.py` 中设置数据目录、模型路径、`TRAIN_SUBSETS`、文件选择策略等。
+**配置**：运行前在 `config/config_step1.py`、`config/config_step2.py`、`config/config_step3.py` 中设置数据目录、模型路径、`TRAIN_SUBSETS`、文件选择策略、保留数量target_counts等。
 
 ### 1.2 分步清洗
 
@@ -188,7 +188,7 @@ messages = [
 中等题去重时需兼容两种记忆块格式：
 
 - **标准格式**（常见）：`Memories for user X`
-- **Nano 格式**：`Memories for the Users`，且，有单引号和双引号
+- **Nano 格式**：`Memories for the Users`，有单引号和双引号
 
 **目录含义**
 
@@ -197,3 +197,23 @@ messages = [
 | `easy/`、`medium/`、`hard/` | 第二步输出的全量简单 / 中等 / 难题样本 |
 | `medium_dedup/` | 在 `medium/` 上按规则去重后的中等题 |
 | `easy_pro/`、`medium_pro/`、`hard_pro/` | 第三步按配置比例与目标总量抽样后的子集 |
+
+**去重与抽样记录：**
+
+**最开始：**
+- Easy 样本数: 136
+- Medium 样本数: 1756---->1438
+- Hard 样本数: 439
+- 总分类样本数: 2331
+
+**中等题去重后：**
+- Easy：136 / 2013 ≈ 6.8%
+- Medium：1438 / 2013 ≈ 71.4%
+- Hard：439 / 2013 ≈ 21.8%
+
+**按比例保留后：**
+最大保留数方案  N=1360，Easy 全留，Hard 留 68，Medium 留 1156。
+- Easy: 保留 136（占 10%）
+- Medium: 保留 1156（占 85%）
+- Hard: 保留 68（占 5%）
+- 总样本数 1360（相比原 2013，删除了 653 个）

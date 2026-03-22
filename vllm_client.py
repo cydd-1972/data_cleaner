@@ -1,6 +1,5 @@
 import logging
 from typing import List, Optional, Union
-import torch
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +14,20 @@ except ImportError:
 class VLLMClient:
     """vLLM客户端，支持高效的批量生成"""
     
-    def __init__(self, model_path: str, device: List[int] = None, 
+    def __init__(self, model_path: str, device: List[int] = None,
                  dtype: str = "float16", max_model_len: int = 8192,
-                 gpu_memory_utilization: float = 0.85, max_num_seqs: int = 8):
+                 gpu_memory_utilization: float = 0.85, max_num_seqs: int = 8,
+                 tensor_parallel_size: Optional[int] = None):
         if not VLLM_AVAILABLE:
             raise ImportError("vLLM未安装")
-        
+
+        # 多卡时默认张量并行，否则模型会整载到可见的第一张卡上，易 OOM
+        if tensor_parallel_size is None:
+            if device is not None and isinstance(device, list) and len(device) > 1:
+                tensor_parallel_size = len(device)
+            else:
+                tensor_parallel_size = 1
+
         # 设置GPU设备
         if device is not None:
             import os
@@ -28,7 +35,7 @@ class VLLMClient:
                 os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, device))
             else:
                 os.environ["CUDA_VISIBLE_DEVICES"] = str(device)
-        
+
         # 初始化LLM引擎
         self.llm = LLM(
             model=model_path,
@@ -36,6 +43,7 @@ class VLLMClient:
             max_model_len=max_model_len,
             gpu_memory_utilization=gpu_memory_utilization,
             max_num_seqs=max_num_seqs,
+            tensor_parallel_size=tensor_parallel_size,
             trust_remote_code=True,
         )
         

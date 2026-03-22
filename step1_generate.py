@@ -45,7 +45,7 @@ class AnswerGenerator:
         self.vllm_client = VLLMClient(
             model_path=self.model_path,
             device=config.MODEL_CONFIG["device"],
-            dtype=config.MODEL_CONFIG["torch_dtype"],
+            dtype=config.MODEL_CONFIG.get("dtype", config.MODEL_CONFIG.get("torch_dtype", "float16")),
             max_model_len=engine_config["max_model_len"],
             gpu_memory_utilization=engine_config["gpu_memory_utilization"],
             max_num_seqs=engine_config["max_num_seqs"],

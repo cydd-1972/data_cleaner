@@ -4,19 +4,21 @@ from pathlib import Path
 # ==================== 本地模型配置 ====================
 MODEL_CONFIG = {
     "judge_model_path": "/mnt_16T/zy/models/Qwen3-14B",
-    "judge_device": [1, 2],  # 评估模型使用的GPU设备
-    "judge_max_tokens": 4096,
-    "torch_dtype": "float16",
+    "judge_device": [1, 2],  # 评估模型使用的 GPU；多卡时 vLLM 默认 tensor_parallel_size=len(device)
+    "judge_max_tokens": 512,  # 评判只需「正确/错误」，过大易浪费显存与算力
+    "dtype": "float16",
 }
 
 # ==================== vLLM 配置 ====================
 VLLM_CONFIG = {
     "enabled": True,
     "engine_config": {
-        "gpu_memory_utilization": 0.85,
-        "max_num_seqs": 8,
+        # 单卡 24GB 跑 14B 时建议略降；多卡张量并行时可酌情调高
+        "gpu_memory_utilization": 0.80,
+        "max_num_seqs": 4,
         "max_model_len": 8192,
-    }
+        "tensor_parallel_size": 2
+    },
 }
 
 # ==================== 数据路径配置 ====================
@@ -32,7 +34,7 @@ FILE_SELECTION = {
     
     # custom模式：精确匹配指定的文件
     "custom_patterns": [
-        # "0_0000_qwen3-14b_qwen3-14b-70_clm_10_generated.jsonl",
+        "1_0000_Qwen3-14B_Qwen3-14B_clm_10_generated.jsonl"
     ],
     
     # all模式：匹配所有文件
@@ -41,10 +43,10 @@ FILE_SELECTION = {
 
 # ==================== 评估配置 ====================
 EVALUATION_CONFIG = {
-    # 评估参数
-    "batch_size": 64,          
-    "temperature": 0.1,        
-    "early_stop_for_medium": True, 
+    # 评估参数（vLLM 一次调度 batch_size 条长上下文，过大易 OOM）
+    "batch_size": 8,
+    "temperature": 0.1,
+    "early_stop_for_medium": True,
     "max_tokens": 4096,        
     
     # 输出配置
