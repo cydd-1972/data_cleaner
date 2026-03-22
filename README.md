@@ -1,49 +1,104 @@
-# locomo数据清洗
-## 一 快速清洗
-### 1.1一步清洗
+# LoCoMo 数据清洗
 
+本仓库将原始对话样本经三步处理：批量生成候选答案、用大模型评判并划分难度、对中等题去重后按比例抽样，得到用于训练的清洗数据。下文说明如何一键或分步运行，以及各步数据约定。
 
-### 1.2分步清洗
+---
 
+## 一、快速开始
 
+### 1.1 一步清洗
 
-## 二 项目结构
+在**项目根目录**执行（需与本仓库中的 `config/`、`vllm_client.py` 及三步脚本放在一起）：
 
+```bash
+python run_clean_pipeline.py
+```
 
+脚本会**顺序**拉起三个子进程：`step1_generate.py` → `step2_evaluate.py` → `step3_filter.py`。每步在独立进程中结束，便于释放显存，避免 8B 生成模型与 14B 评判模型同时占用 GPU。
 
+**常用参数**
 
-## 三 步骤细节说明
-### 3.1.生成答案
-- 模型：Qwen3-8B
-- 支持vLLM加速和批量生成
-- 支持断点续传
-每个样本将生成k个答案，保存文件中将一行一个样本，样本结构如下：  
+| 参数 | 说明 |
+|------|------|
+| `--skip-step1` | 跳过生成（已有 `generated_answers/` 时） |
+| `--skip-step2` | 跳过评估（已有 `easy/`、`medium/`、`hard/` 时） |
+| `--skip-step3` | 跳过去重与按比例抽样 |
 
-（1）sample_key：作为样本唯一标识，由源样本名（去掉后缀）+ 行号组成，例如："0_14714705_gpt-4.1-mini_qwen3-14b-30_clm_10_4"，注意原样本名不是data_source，因为很多文件都来自同一个data_source，不能保证sample_key的唯一性，增加该key是为了断点续传、debug、后续步骤评估和分类溯源
+第二步（评估）支持的参数与 `step2_evaluate.py` 相同；写在命令行末尾、且不属于本入口脚本的参数，会原样传给第二步，例如：
 
-（2）sample：原样本内容:  
-- data_source
-        数据来源的模型或配置，示例："0_14714705_gpt-4" 
-  
-- prompt
-        content：完整的提示词，包含系统指令、记忆内容、问题等 role：这里是 "user"。
+```bash
+python run_clean_pipeline.py --batch-size 64
+python run_clean_pipeline.py --skip-step1 --no-early-stop
+```
 
-- ability
-        字符串，表示任务能力类型，这里是 "memory"（记忆检索）。
+**配置**：运行前请在 `config/config_step1.py`、`config/config_step2.py`、`config/config_step3.py` 中设置数据目录、模型路径、`TRAIN_SUBSETS`、文件选择策略等。
 
-- reward_model
-        ground_truth：答案（raw 和 fixed 列表两种格式）
-        style：规则类型，这里是 "rule"
+### 1.2 分步清洗
 
-- extra_info
-        index：在数据集中的序号
-        split：数据集划分（"train"）
-        group_id：对话组 ID
-        qa_id：问答对 ID
-        category：类别编号
-        source_file：来源文件名
-- question
-        字符串，用户的问题。
+需让 Python 能导入 `config_step1` / `config_step2` / `config_step3`（位于 `config/`）以及根目录的 `vllm_client.py`。在**项目根目录**执行，并设置 `PYTHONPATH`（项目根 + `config`）。
+
+Linux / macOS：
+
+```bash
+export PYTHONPATH="$(pwd):$(pwd)/config:${PYTHONPATH}"
+python step1_generate.py
+python step2_evaluate.py
+python step3_filter.py
+```
+
+Windows PowerShell：
+
+```powershell
+$env:PYTHONPATH = "$PWD;$PWD\config"
+python step1_generate.py
+python step2_evaluate.py
+python step3_filter.py
+```
+
+---
+
+## 二、项目结构
+
+| 路径 | 作用 |
+|------|------|
+| `run_clean_pipeline.py` | 一键串联三步的入口 |
+| `step1_generate.py` | 第一步：Qwen3-8B（vLLM）为每条样本生成 k 个答案 |
+| `step2_evaluate.py` | 第二步：Qwen3-14B 判对错，按难度写入 `easy/`、`medium/`、`hard/` |
+| `step3_filter.py` | 第三步：中等题去重，再按比例抽样到 `*_pro/` |
+| `vllm_client.py` | vLLM 封装，供第一步与第二步共用 |
+| `config/config_step1.py` | 数据路径、生成参数、断点续传等 |
+| `config/config_step2.py` | 评判模型、评估与分类阈值等 |
+| `config/config_step3.py` | 目录约定、抽样比例与目标样本量等 |
+
+日志路径由各步 `LOG_CONFIG` 或脚本输出决定（例如 `OUTPUT_DIR` 下的 `step1_generation.log`、`step2_evaluation.log`）。
+
+---
+
+## 三、各步说明
+
+### 3.1 生成答案
+
+- **模型**：Qwen3-8B  
+- **能力**：vLLM 加速、批量生成、断点续传  
+
+每条样本生成 k 个答案；输出为 JSONL，**一行一个样本**。字段含义如下。
+
+**sample_key**  
+样本唯一标识，一般由「源文件名去掉后缀」与「行号」等组成，例如 `0_14714705_gpt-4.1-mini_qwen3-14b-30_clm_10_4`。  
+说明：不宜仅用 `data_source` 区分样本（多行可能共享同一 `data_source`）。显式 `sample_key` 便于断点续跑、排查问题，以及后续评估与分类溯源。
+
+**sample（原始样本）**
+
+| 字段 | 含义 |
+|------|------|
+| `data_source` | 数据来源标识，例如 `0_14714705_gpt-4` |
+| `prompt` | 对话提示；`content` 为完整上下文（系统指令、记忆、问题等），`role` 多为 `user` |
+| `ability` | 任务类型，例如记忆检索时为 `memory` |
+| `reward_model` | `ground_truth` 含 `raw` / `fixed` 等；`style` 为规则类型，如 `rule` |
+| `extra_info` | `index`、`split`、`group_id`、`qa_id`、`category`、`source_file` 等 |
+| `question` | 用户问题文本 |
+
+示例结构：
 
 ```json
 {
@@ -75,7 +130,7 @@
     },
     "question": "具体的问题内容"
   },
-  "generated_answers": ["答案1", "答案2", ..., "答案128"],
+  "generated_answers": ["答案1", "答案2", "（共 k 条）"],
   "extra_info": {
     "original_sample_key": "0_0000_qwen3-14b_qwen3-14b-70_clm_10_123",
     "line_number": 123
@@ -83,45 +138,62 @@
 }
 ```
 
+### 3.2 评估答案正确性
 
+1. 对每条样本的每个生成答案调用评判模型，输出「正确」或「错误」。  
+2. 根据正确数量划分难度：难例 / 中等 / 简单（阈值见 `config_step2`）。  
+3. 将整条原始样本写入对应难度目录下的 JSON 文件。  
 
-### 3.2评估答案正确性
+**模型**：Qwen3-14B  
 
+**提示词（Chat 模板）**
 
-1. 评估生成的答案，判断每个答案是否正确
-2. 根据正确数分类（难例/中等/简单）
-3. 将样本分别保存到对应的文件夹
-
-模型：用Qwen3-14B评估
-提示词：
-- chat模板
 ```python
-    messages = [
-        {"role": "system", "content": "你是一个公正的答案评判员。请判断生成的答案是否与标准答案意思一致，只回答'正确'或'错误'。"},
-        {"role": "user", "content": 
-        f"""问题：{question}
-            标准答案：
-            {gt_text}
-            生成的答案：
-            {answer}
-            这个答案正确吗？请只回答"正确"或"错误"。"""
-        }
-    ]
+messages = [
+    {
+        "role": "system",
+        "content": "你是一个公正的答案评判员。请判断生成的答案是否与标准答案意思一致，只回答'正确'或'错误'。",
+    },
+    {
+        "role": "user",
+        "content": f"""问题：{question}
+标准答案：
+{gt_text}
+生成的答案：
+{answer}
+这个答案正确吗？请只回答"正确"或"错误"。"""",
+    },
+]
 ```
-- 纯文本模板
+
+**提示词（纯文本回退）**
+
 ```text
-    你是一个公正的答案评判员。请判断以下生成的答案是否与标准答案意思一致。
+你是一个公正的答案评判员。请判断以下生成的答案是否与标准答案意思一致。
 
-    【问题】
-    {question}
+【问题】
+{question}
 
-    【标准答案】
-    {gt_text}
+【标准答案】
+{gt_text}
 
-    【生成的答案】
-    {answer}
+【生成的答案】
+{answer}
 
-    请只回答"正确"或"错误"。
+请只回答"正确"或"错误"。
 ```
-### 3.3样本分类并整合
 
+### 3.3 分类、去重与抽样
+
+中等题去重时需兼容两种记忆块格式：
+
+- **标准格式**（常见）：`Memories for user X`
+- **Nano 格式**：`Memories for the Users`，且，有单引号和双引号
+
+**目录含义**
+
+| 目录 | 说明 |
+|------|------|
+| `easy/`、`medium/`、`hard/` | 第二步输出的全量简单 / 中等 / 难题样本 |
+| `medium_dedup/` | 在 `medium/` 上按规则去重后的中等题 |
+| `easy_pro/`、`medium_pro/`、`hard_pro/` | 第三步按配置比例与目标总量抽样后的子集 |

@@ -1,6 +1,3 @@
-"""
-LoCoMo数据集清洗 - 第二步+第三步：评估答案并分类
-"""
 import json
 import logging
 import argparse

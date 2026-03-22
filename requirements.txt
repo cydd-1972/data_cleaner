@@ -1,0 +1,14 @@
+# LoCoMo 数据清洗 — Python 依赖
+# 安装: pip install -r requirements.txt
+#
+# 说明:
+# - 第一步、第二步依赖 GPU 上的 vLLM；请先确认 CUDA 版本，并按官方说明安装 PyTorch / vLLM:
+#   https://docs.vllm.ai/en/latest/getting_started/installation.html
+# - 若已单独安装过与 CUDA 匹配的 torch，可先装 transformers、tqdm，再装 vllm，避免 pip 覆盖 torch。
+# 
+# transformers 版本建议不要超过5，详情见docs/数据清洗总结.md
+
+torch
+transformers>=4.51.0
+tqdm
+vllm>=0.8.5
