@@ -8,7 +8,7 @@
 
 ### 1.1 一步清洗
 
-**配置**：运行前在 `config/config_step1.py`、`config/config_step2.py`、`config/config_step3.py` 中设置数据目录、模型路径、`TRAIN_SUBSETS`、文件选择策略、保留数量target_counts等。
+**配置**：运行前在 `config/config_step1.py`、`config/config_step2.py`、`config/config_step3.py` 中设置数据目录、模型路径、文件选择策略、保留数量 target_counts 等。
 
 在**项目根目录**执行（需与本仓库中的 `config/`、`vllm_client.py` 及三步脚本放在一起）：
 

@@ -77,47 +77,9 @@ class AnswerGenerator:
         logger.info(f"配置: k={self.k}, batch_size={self.batch_size}")
         logger.info(f"文件选择策略: {config.FILE_SELECTION['strategy']}")
     
-    def load_data(self, subset: int) -> List[Dict]:
-        """
-        加载指定子集的数据
-        支持 "all" 和 "custom" 两种策略
-        """
-        subset_dir = config.DATA_DIR
-        files = []
-        
-        strategy = config.FILE_SELECTION["strategy"]
-        
-        if strategy == "all":
-            # all模式：加载所有匹配的文件
-            pattern = config.FILE_SELECTION.get("all_pattern", "{subset}_*.jsonl")
-            pattern = pattern.format(subset=subset)
-            files = list(subset_dir.glob(pattern))            
-            logger.info(f"All模式: 找到 {len(files)} 个匹配 {pattern} 的文件")
-            if files:
-                logger.debug(f"文件列表: {[f.name for f in files[:5]]}{'...' if len(files) > 5 else ''}")
-                
-        elif strategy == "custom":
-            # custom模式：精确匹配指定的文件
-            patterns = config.FILE_SELECTION.get("custom_patterns", [])            
-            for pattern in patterns: # 之前用的先匹配{subset}前缀，不太好，直接用patterns就行
-                formatted_pattern = pattern
-                file_path = subset_dir / formatted_pattern
-                if file_path.exists():
-                    files.append(file_path)
-                    logger.debug(f"找到文件: {file_path.name}")
-                else:
-                    logger.warning(f"自定义模式文件不存在: {file_path}")
-            logger.info(f"Custom模式: 找到 {len(files)} 个匹配的文件")
-            
-        else:
-            raise ValueError(f"不支持的文件选择策略: {strategy}，请使用 'all' 或 'custom'")
-        
-        if not files:
-            logger.warning(f"子集 {subset} 未找到数据文件")
-            return []
-        
-        # 加载所有文件，并记录行号
-        all_samples = []
+    def _load_samples_from_files(self, files: List[Path]) -> List[Dict]:
+        """从给定 jsonl 文件列表加载样本（写入 source_file、line_number）。"""
+        all_samples: List[Dict] = []
         for file_path in files:
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
@@ -126,19 +88,53 @@ class AnswerGenerator:
                         line = line.strip()
                         if line:
                             sample = json.loads(line)
-                            if "extra_info" not in sample: # 这里的extra_info是外层的
+                            if "extra_info" not in sample:
                                 sample["extra_info"] = {}
                             sample["extra_info"]["source_file"] = file_path.name
                             sample["extra_info"]["line_number"] = line_num
                             file_samples.append(sample)
-                    
                     all_samples.extend(file_samples)
                     logger.info(f"从 {file_path.name} 加载了 {len(file_samples)} 条数据（行号 1-{len(file_samples)}）")
-                    
             except Exception as e:
                 logger.error(f"加载文件 {file_path} 失败: {e}")
-        
-        logger.info(f"子集 {subset} 共加载 {len(all_samples)} 条样本")
+        return all_samples
+
+    def load_data_custom(self) -> List[Dict]:
+        """
+        custom 模式：仅在 DATA_DIR 下按 custom_patterns 解析文件。
+        """
+        data_dir = config.DATA_DIR
+        files: List[Path] = []
+        patterns = config.FILE_SELECTION.get("custom_patterns", [])
+        for pattern in patterns:
+            file_path = data_dir / pattern
+            if file_path.exists():
+                files.append(file_path)
+                logger.debug(f"找到文件: {file_path.name}")
+            else:
+                logger.warning(f"自定义模式文件不存在: {file_path}")
+        logger.info(f"Custom模式: 在 DATA_DIR 下找到 {len(files)} 个文件")
+        if not files:
+            return []
+        all_samples = self._load_samples_from_files(files)
+        logger.info(f"Custom模式共加载 {len(all_samples)} 条样本")
+        return all_samples
+
+    def load_data_all(self) -> List[Dict]:
+        """
+        all 模式：在 DATA_DIR 下用 all_pattern 做一次 glob，加载所有匹配文件。
+        """
+        data_dir = config.DATA_DIR
+        pattern = config.FILE_SELECTION.get("all_pattern", "*.jsonl")
+        files = sorted(data_dir.glob(pattern))
+        logger.info(f"All模式: 匹配 {pattern}，找到 {len(files)} 个文件")
+        if files:
+            logger.debug(f"文件列表: {[f.name for f in files[:5]]}{'...' if len(files) > 5 else ''}")
+        if not files:
+            logger.warning("All模式: DATA_DIR 下未找到匹配文件")
+            return []
+        all_samples = self._load_samples_from_files(files)
+        logger.info(f"All模式共加载 {len(all_samples)} 条样本")
         return all_samples
     
     def get_sample_key(self, sample: Dict) -> str:
@@ -332,7 +328,9 @@ class AnswerGenerator:
                         
                         self.stats["processed_samples"] += 1
                         self.stats["total_generated_answers"] += len(cleaned_answers)
-                        pbar.update(1)
+                    
+                    # 每批一次更新：与一次 vLLM.generate（batch_size 个 prompt × k 条）对齐，避免误看成「512 只对应 1 个样本」
+                    pbar.update(len(batch))
                     
                 except Exception as e:
                     logger.error(f"批次 {batch_idx//self.batch_size + 1} 处理失败: {e}")
@@ -357,12 +355,12 @@ class AnswerGenerator:
             logger.error("请使用 'all' 或 'custom'")
             return
         
-        # 加载所有数据
-        all_samples = []
-        for subset in config.TRAIN_SUBSETS:
-            logger.info(f"加载子集 {subset}...")
-            samples = self.load_data(subset)
-            all_samples.extend(samples)
+        # 加载数据：custom 用 custom_patterns；all 用 DATA_DIR + all_pattern 一次 glob
+        all_samples: List[Dict] = []
+        if strategy == "custom":
+            all_samples = self.load_data_custom()
+        else:
+            all_samples = self.load_data_all()
         
         if not all_samples:
             logger.error("未加载到任何数据")

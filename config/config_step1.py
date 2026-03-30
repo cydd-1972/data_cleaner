@@ -24,9 +24,6 @@ VLLM_CONFIG = {
 DATA_DIR = Path("/mnt_16T/zy/data/locomo/train_left")
 OUTPUT_DIR = Path("/mnt_16T/zy/data/cleaned_data_left")
 
-# 训练集子集
-TRAIN_SUBSETS = [0, 7] #
-
 # ==================== 文件选择策略 ====================
 FILE_SELECTION = {
     "strategy": "custom",  # 可选: "all" 或 "custom"   
@@ -34,8 +31,8 @@ FILE_SELECTION = {
     "custom_patterns": [
         "evaluation_metrics_0.jsonl"
     ],  
-    # all模式：匹配所有文件，可以添加额外过滤
-    "all_pattern": "{subset}_*.jsonl",  # all模式使用的glob模式
+    # all模式：在 DATA_DIR 下 glob 一次（不含子集编号）
+    "all_pattern": "*.jsonl",
 }
 
 # ==================== 生成参数配置 ====================

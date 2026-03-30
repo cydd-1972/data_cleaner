@@ -55,7 +55,8 @@ class VLLMClient:
                 n: int = 1,
                 top_p: float = 0.95,
                 top_k: int = 50,
-                stop: Optional[List[str]] = None) -> List[List[str]]:
+                stop: Optional[List[str]] = None,
+                use_tqdm: bool = False) -> List[List[str]]:
 
         # 统一处理为列表
         if isinstance(prompts, str):
@@ -71,8 +72,8 @@ class VLLMClient:
             stop=stop,
         )
         
-        # 批量生成
-        outputs = self.llm.generate(prompts, sampling_params)
+        # 批量生成（use_tqdm=False 避免 vLLM 内部「Processed prompts」进度条）
+        outputs = self.llm.generate(prompts, sampling_params, use_tqdm=use_tqdm)
         
         # 提取生成的文本
         results = []
@@ -86,8 +87,9 @@ class VLLMClient:
     def generate_batch(self, prompts: List[str], 
                       temperature: float = 1.0,
                       max_tokens: int = 4096,
-                      n: int = 1) -> List[List[str]]:
-        return self.generate(prompts, temperature, max_tokens, n)
+                      n: int = 1,
+                      use_tqdm: bool = False) -> List[List[str]]:
+        return self.generate(prompts, temperature, max_tokens, n, use_tqdm=use_tqdm)
     
     def close(self):
         """释放资源"""
