@@ -11,6 +11,10 @@ from tqdm import tqdm
 import config_step1 as config
 from vllm_client import VLLMClient
 
+# 创建日志文件目录（如果不存在）
+log_file = Path(config.LOG_CONFIG["file"])
+log_file.parent.mkdir(parents=True, exist_ok=True)
+
 # 配置日志
 logging.basicConfig(
     level=getattr(logging, config.LOG_CONFIG["level"]),

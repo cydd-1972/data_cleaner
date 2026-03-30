@@ -21,8 +21,8 @@ VLLM_CONFIG = {
 }
 
 # ==================== 数据路径配置 ====================
-DATA_DIR = Path("/mnt_16T/zy/data/locomo/train_filtered_emb_augmented")
-OUTPUT_DIR = Path("/mnt_16T/zy/data/cleaned_data")
+DATA_DIR = Path("/mnt_16T/zy/data/locomo/train_left")
+OUTPUT_DIR = Path("/mnt_16T/zy/data/cleaned_data_left")
 
 # 训练集子集
 TRAIN_SUBSETS = [0, 7] #
@@ -32,7 +32,7 @@ FILE_SELECTION = {
     "strategy": "custom",  # 可选: "all" 或 "custom"   
     # custom模式：精确匹配指定的文件
     "custom_patterns": [
-        # "0_0000_qwen3-14b_qwen3-14b-70_clm_10.jsonl",
+        "evaluation_metrics_0.jsonl"
     ],  
     # all模式：匹配所有文件，可以添加额外过滤
     "all_pattern": "{subset}_*.jsonl",  # all模式使用的glob模式

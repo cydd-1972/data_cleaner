@@ -22,8 +22,8 @@ VLLM_CONFIG = {
 }
 
 # ==================== 数据路径配置 ====================
-DATA_DIR = Path("/mnt_16T/zy/data/locomo/train_filtered_emb_augmented")
-OUTPUT_DIR = Path("/mnt_16T/zy/data/cleaned_data")
+DATA_DIR = Path("/mnt_16T/zy/data/locomo/train_left")
+OUTPUT_DIR = Path("/mnt_16T/zy/data/cleaned_data_left")
 
 # 第一步生成答案的目录
 GENERATED_ANSWERS_DIR = OUTPUT_DIR / "generated_answers"

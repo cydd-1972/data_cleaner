@@ -4,7 +4,7 @@ LoCoMo数据集清洗 - 第三步配置（中等题去重 + 按比例保留）
 from pathlib import Path
 
 # ==================== 数据路径配置 ====================
-OUTPUT_DIR = Path("/mnt_16T/zy/data/cleaned_data")
+OUTPUT_DIR = Path("/mnt_16T/zy/data/cleaned_data_left")
 
 # 第一步生成的分类目录
 EASY_DIR = OUTPUT_DIR / "easy"
